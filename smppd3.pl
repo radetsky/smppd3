@@ -35,6 +35,7 @@
   use Readonly;
   use Config::General;  
   use DBI; 
+  use JSON;
   use NetSDS::Util::String; 
   use NetSDS::Util::Convert; 
   use Data::UUID::MT; 
@@ -43,6 +44,7 @@
   use Encode qw/encode decode encode_utf8 decode_utf8 from_to is_utf8/;
   use Log::Log4perl qw(get_logger :easy); 
   use Log::Log4perl::Appender; 
+  use SMPP::Packet; 
 
   Log::Log4perl->easy_init();
 
@@ -64,13 +66,24 @@
   my $conf = read_config(smppd3_config);
   $logger->debug ("Config: " . Dumper $conf) if $debug; 
 
+  unless ( defined ( $debug )) { my_daemon_procedure(); } 
+
+
   my $dbh = connect_db($conf); 
   my $sql = "insert into messages ( msg_type, esme_id, src_addr, dst_addr, body, short_message, coding, udh, mwi, mclass, message_id, validity, deferred, registered_delivery, service_type, extra, received ) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? ) ";
   my $insert_sth = $dbh->prepare_cached($sql);
 
+  my $sql2 = "select id,msg_type,esme_id,src_addr,dst_addr,body,coding,udh,mwi,mclass,validity,deferred,message_id,registered_delivery,service_type,extra from messages where msg_type='MO' or msg_type='DLR' and esme_id = ? order by id limit ?";
+  my $get_mo_sth = $dbh->prepare_cached($sql2); 
+
+  my $sql3 = "delete from messages where message_id=?"; 
+  my $del_mo_sth = $dbh->prepare_cached($sql3); 
+
+
+  my $seq = 1; 
+
 #  unless ( defined ( $debug ) ) { Proc::Daemon::Init; } # Если не debug, то демон. 
 
-  unless ( defined ( $debug )) { my_daemon_procedure(); } 
 
   my $server = Pearl::SMPP::Server->new (  
     debug => $debug, 
@@ -99,14 +112,15 @@
     }, 
 
     outbound_q => sub { 
-      my ( $system_id ) = @_; 
-      return ( SMPP::Packet::pack_pdu ( { 
-          source_address => 'A-name', 
-          version => 0x34, 
-          short_message => 'Short message already encoded text', 
-          destination_addr => '380504139380'
-        }))
+      $logger->debug("Timer") if $debug;  
+      return handle_outbound ();       
     },
+
+    handle_deliver_sm_resp => sub { 
+      my ($host, $port, $pdu) = @_; 
+      return handle_deliver_sm_resp ($host, $port, $pdu); #return undef always 
+    }, 
+
     disconnect => sub { 
       my ($host, $port) = @_; 
       delete $connections->{connection_id($host,$port)};
@@ -378,4 +392,150 @@ sub put_message {
 
   return 1;
 
+}
+
+sub handle_outbound { 
+  # Найти порцию исходящих сообщений ( foreach system_id (bandwidth) )
+  # Вернуть hashref $hash_ref -> { $system_id } -> { $msg_id } -> { $PDU } 
+  # Server будет отправлять каждому $system_id его PDU.  
+
+  my $outbound = undef; 
+
+  # 1. Смотрим кто в онлайне. 
+  foreach my $connection_id ( keys %{ $connections} ) { 
+    my $system_id = $connections->{$connection_id}->{'authentication'}->{'system_id'}; 
+    my $esme_id   = $connections->{$connection_id}->{'authentication'}->{'esme_id'}; 
+    my $bandwidth = $connections->{$connection_id}->{'authentication'}->{'bandwidth'}; 
+    $outbound->{$system_id} = get_msgs ( $esme_id, $bandwidth ); 
+  }
+  
+  return $outbound; 
+}
+
+sub get_msgs { 
+  my ( $esme_id, $bandwidth ) = @_; 
+  my $msgs = undef; 
+
+#  warn "esme_id: $esme_id, bandwidth: $bandwidth"; 
+
+  eval { $get_mo_sth->execute( $esme_id, $bandwidth ); }; 
+  if ( $@ ) {
+    $logger->error("Can't execute GET MO statement: $! $@"); 
+    die $!; 
+  }
+  my $res = $get_mo_sth->fetchall_hashref('id'); 
+  #warn Dumper $res; 
+  return undef unless ( defined ( keys %{ $res })); 
+
+  foreach my $id ( keys %{ $res }) { 
+    my $pdu = convert_mo ( $res->{$id} ); 
+    $msgs->{$id} = $pdu; 
+  }
+
+  return $msgs; 
+}
+
+sub convert_mo { 
+  my ($mo1) = @_; 
+  my $mo = extra_decode($mo1); 
+
+  my $pdu = undef; 
+
+  $pdu->{source_addr} = $mo->{'src_addr'}; 
+  $pdu->{destination_addr} = $mo->{'dst_addr'}; 
+  $pdu->{short_message} = short_message ($mo); 
+  $pdu->{esm_class} = esm_class($mo); 
+  $pdu->{data_coding} = data_coding($mo); 
+  $pdu->{receipted_message_id} = receipted_message_id($mo); 
+  $pdu->{message_state} = message_state($mo); 
+  $pdu->{message_id} = $mo->{'message_id'}; 
+  $pdu->{command} = 'deliver_sm'; 
+  $pdu->{version} = 0x34; 
+  $pdu->{seq} = $seq; $seq++; 
+  $pdu->{status} = 0; 
+
+  $logger->info("Converted MO/DLR: ". Dumper $pdu); 
+
+  return SMPP::Packet::pack_pdu($pdu); 
+}
+
+sub message_state { 
+  my ($mo) = @_; 
+
+  return undef unless ( defined ( $mo->{'message_state'})); 
+  return $mo->{'message_state'}; 
+}
+
+sub receipted_message_id { 
+  my ($mo) = @_; 
+
+  return undef unless (defined ( $mo->{'receipted_message_id'})); 
+  return $mo->{'receipted_message_id'}; 
+
+}
+
+sub data_coding { 
+  my ($mo) = @_; 
+
+  # Set right data_coding field.
+  my $data_coding = $mo->{coding};
+  if ( $data_coding < 3 ) {
+    $data_coding = ( $data_coding << 2 ) & 0b00001100;
+  }
+
+  return $data_coding; 
+}
+
+sub extra_decode {
+  my ( $mo ) = @_;
+
+  my $extra = decode_json( $mo->{'extra'} );
+  undef $mo->{'extra'};
+
+  foreach my $parameter ( keys %{ $extra } ) {
+    if ( $parameter =~ /message_state/i ) {
+      $mo->{$parameter} = $extra->{$parameter};
+      next;
+    }
+    if ( $parameter =~ /receipted_message_id/i ) {
+      $mo->{$parameter} = $extra->{$parameter} . chr(0);
+      next;
+    }
+    $mo->{$parameter} = $extra->{$parameter};
+  }
+  return $mo;
+
+} ## end sub _extra_decode
+
+sub esm_class { 
+  my ($mo) = @_; 
+
+  unless ( defined ( $mo->{'udh'} ) ) { # No UDH in the message 
+    return $mo->{'mclass'}; 
+  }
+  return 0b01000000 & $mo->{'mclass'}; 
+}
+
+sub short_message { 
+  my ($mo) = @_; 
+
+  unless ( defined ( $mo->{'short_message'} ) ) { 
+    return conv_utf8_gsm ( encode ( 'utf-8', $mo->{'body'} ), $mo->{'coding'}); 
+  }
+
+  return $mo->{'short_message'}; 
+}
+
+sub handle_deliver_sm_resp { 
+  my ($host, $port, $pdu) = @_; 
+
+  my $msg_id = $pdu->{'message_id'}; 
+  $logger->info("Deliver_sm_resp for $msg_id. Delete."); 
+
+  eval { $del_mo_sth->execute($msg_id); }; 
+  if ( $@ ) { 
+    die "Can't delete with message_id=$msg_id : $!";  
+  }
+
+  return undef; 
 }

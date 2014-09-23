@@ -71,5 +71,8 @@ create table delivery_requests (
 	expire timestamp NOT NULL default now()
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 
+create index m1 on messages (id);
+create index m2 on messages (msg_type);
+create index m3 on messages (esme_id);
+create index m4 on messages (message_id);
 
--- Dump completed on 2010-09-10 19:19:26
