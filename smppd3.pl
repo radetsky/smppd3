@@ -257,6 +257,12 @@ sub connection_id {
 sub authorization  { 
   my ($host, $port, $source_address) = @_; 
   my $auth = $connections->{connection_id($host, $port)}->{'authentication'}; 
+
+  unless ( defined ( $auth->{'allowed_src'})) { 
+    $logger->info("Allowed from ANY source address because allowed_src is NULL"); 
+    return 1; 
+  }
+
   my @allowed_src = split( ',', $auth->{'allowed_src'} );
 
   foreach my $source (@allowed_src) {
