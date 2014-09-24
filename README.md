@@ -29,3 +29,19 @@ dsn=DBI:mysql:database=pearlsms;host=localhost
 db-user=pearlsms
 db-secret=pearlsms
 
+run
+===
+
+cd <where smppd3.conf located>
+smppd3 
+or smppd3 --debug for verbose and debug mode
+
+Logfile: /var/log/smppd3.conf 
+PID: /var/run/smppd3.pid 
+
+stop
+====
+
+kill -TERM `cat /var/run/smppd3.conf` 
+
+ALSO read SQLAPI.txt 
