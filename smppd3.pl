@@ -60,14 +60,14 @@
   $appender->layout($layout);
   $logger->add_appender($appender);  
 
-  pid(); # PID = /var/run/smppd3.pid 
   my $debug  = getopt(); # Get CLI options --debug  
 
   my $conf = read_config(smppd3_config);
   $logger->debug ("Config: " . Dumper $conf) if $debug; 
 
   unless ( defined ( $debug )) { my_daemon_procedure(); } 
-
+  pid(); # PID = /var/run/smppd3.pid 
+ 
 
   my $dbh = connect_db($conf); 
   my $sql = "insert into messages ( msg_type, esme_id, src_addr, dst_addr, body, short_message, coding, udh, mwi, mclass, message_id, validity, deferred, registered_delivery, service_type, extra, received ) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? ) ";
@@ -112,7 +112,7 @@
     }, 
 
     outbound_q => sub { 
-      $logger->debug("Timer") if $debug;  
+      #$logger->debug("Timer") if $debug;  
       return handle_outbound ();       
     },
 
@@ -457,7 +457,7 @@ sub convert_mo {
   $pdu->{message_id} = $mo->{'message_id'}; 
   $pdu->{command} = 'deliver_sm'; 
   $pdu->{version} = 0x34; 
-  $pdu->{seq} = $seq; $seq_message_id{$seq} = $mo->{'message_id'}; $seq++; 
+  $pdu->{seq} = $seq; $seq_message_id->{$seq} = $mo->{'message_id'}; $seq++; 
   $pdu->{status} = 0; 
 
   $logger->info("Converted MO/DLR: ". Dumper $pdu); 
@@ -500,7 +500,7 @@ sub extra_decode {
 
   foreach my $parameter ( keys %{ $extra } ) {
     if ( $parameter =~ /message_state/i ) {
-      $mo->{$parameter} = $extra->{$parameter}+0;
+      $mo->{$parameter} = pack( "c", $extra->{$parameter} );
       next;
     }
     if ( $parameter =~ /receipted_message_id/i ) {
