@@ -79,8 +79,8 @@
   my $sql3 = "delete from messages where message_id=?"; 
   my $del_mo_sth = $dbh->prepare_cached($sql3); 
 
-
   my $seq = 1; 
+  my $seq_message_id = undef; 
 
 #  unless ( defined ( $debug ) ) { Proc::Daemon::Init; } # Если не debug, то демон. 
 
@@ -457,7 +457,7 @@ sub convert_mo {
   $pdu->{message_id} = $mo->{'message_id'}; 
   $pdu->{command} = 'deliver_sm'; 
   $pdu->{version} = 0x34; 
-  $pdu->{seq} = $seq; $seq++; 
+  $pdu->{seq} = $seq; $seq_message_id{$seq} = $mo->{'message_id'}; $seq++; 
   $pdu->{status} = 0; 
 
   $logger->info("Converted MO/DLR: ". Dumper $pdu); 
@@ -535,8 +535,9 @@ sub short_message {
 sub handle_deliver_sm_resp { 
   my ($host, $port, $pdu) = @_; 
 
-  my $msg_id = $pdu->{'message_id'}; 
+  my $msg_id = $seq_message_id->{$pdu->{'seq'}};
   $logger->info("Deliver_sm_resp for $msg_id. Delete."); 
+  delete $seq_message_id->{$pdu->{'seq'}};
 
   eval { $del_mo_sth->execute($msg_id); }; 
   if ( $@ ) { 
