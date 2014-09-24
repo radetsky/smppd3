@@ -500,7 +500,7 @@ sub extra_decode {
 
   foreach my $parameter ( keys %{ $extra } ) {
     if ( $parameter =~ /message_state/i ) {
-      $mo->{$parameter} = $extra->{$parameter};
+      $mo->{$parameter} = $extra->{$parameter}+0;
       next;
     }
     if ( $parameter =~ /receipted_message_id/i ) {

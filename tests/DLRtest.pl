@@ -5,7 +5,7 @@
 #
 #        USAGE:  ./DLRTest.pl
 #
-#  DESCRIPTION:  Test DLR cases for smppserver v 2.x
+#  DESCRIPTION:  Test DLR cases for smppserver v3.x
 #
 #      OPTIONS:  ---
 # REQUIREMENTS:  ---
@@ -30,9 +30,9 @@ use JSON;
 
 use NetSDS::Util::Convert;
 
-my $dsn      = 'DBI:mysql:database=pearlsms;host=localhost';
-my $user     = 'pearlsms';
-my $password = 'pearlsms';
+my $dsn      = 'DBI:mysql:database=smpp;host=localhost';
+my $user     = 'smpp';
+my $password = 'smpp234';
 
 my $dbh = DBI->connect_cached( $dsn, $user, $password );
 unless ( defined($dbh) ) {
@@ -51,14 +51,17 @@ while (1) {
 }
 
 sub create_dlr { 
-	my $msg = shift; 
-	my $tlv = { message_state => 2, receipted_message_id => $msg->{'message_id'} };
+	my $msg = shift;
+	my $stat = rand_stat();
+	my $ms = 2; 
+	if ($stat ne 'DELIVRD') { $ms = 5; } 
+	my $tlv = { message_state => $ms, receipted_message_id => $msg->{'message_id'} };
 	my $extra = to_json( $tlv, { ascii => 1, pretty => 1 } );
 	my $dlr   = sprintf("id:%s sub:001 dlvrd:001 submit date:%s done date:%s stat:%s err:0 Text:%s", 
 		substr($msg->{'message_id'},0,10),
 		submit_date($msg->{'received'}), 
 		submit_date($msg->{'received'}), 
-		rand_stat(), 
+		$stat, 
 		"DLR Test."); 
 
 	printf("[DLR] %s\n",$dlr); 
