@@ -85,7 +85,6 @@
 
 #  unless ( defined ( $debug ) ) { Proc::Daemon::Init; } # Если не debug, то демон. 
 
-
   my $server = Pearl::SMPP::Server->new (  
     debug => $debug, 
     host => $conf->{'host'},
