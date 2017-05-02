@@ -80,7 +80,8 @@
   my $del_mo_sth = $dbh->prepare_cached($sql3); 
 
   my $seq = 1; 
-  my $seq_message_id = undef; 
+  my $seq_message_id = undef;
+
 
 #  unless ( defined ( $debug ) ) { Proc::Daemon::Init; } # Если не debug, то демон. 
 
@@ -112,7 +113,8 @@
 
     outbound_q => sub { 
       #$logger->debug("Timer") if $debug;  
-      return handle_outbound ();       
+      my ($socket, $host, $port ) = @_;    
+      return check_outbound ($socket, $host, $port);       
     },
 
     handle_deliver_sm_resp => sub { 
@@ -128,10 +130,9 @@
 
     ); 
 
+    AnyEvent->condvar->recv; 
 
-  AnyEvent->condvar->recv; 
-
- exit(0); 
+    exit(0); 
 
 sub my_daemon_procedure { 
 
@@ -393,11 +394,26 @@ sub put_message {
             ); 
   }; 
 
-  if ( $@ ) { die "Can't insert into database. $!\n"; }
+  if ( $@ ) { 
+	$logger->error("Can't insert into database. $!"); 
+  }
 
   return 1;
 
 }
+
+sub check_outbound { 
+  my ($socket, $host, $port ) = @_; 
+
+  my $connection_id = $host . ':' . $port; 
+  my $system_id = $connections->{$connection_id}->{'authentication'}->{'system_id'};
+  my $esme_id   = $connections->{$connection_id}->{'authentication'}->{'esme_id'};
+  my $bandwidth = $connections->{$connection_id}->{'authentication'}->{'bandwidth'};  
+
+  return get_msgs ( $esme_id, $bandwidth );
+
+}
+
 
 sub handle_outbound { 
   # Найти порцию исходящих сообщений ( foreach system_id (bandwidth) )
@@ -412,16 +428,16 @@ sub handle_outbound {
     my $esme_id   = $connections->{$connection_id}->{'authentication'}->{'esme_id'}; 
     my $bandwidth = $connections->{$connection_id}->{'authentication'}->{'bandwidth'}; 
     $outbound->{$system_id} = get_msgs ( $esme_id, $bandwidth ); 
-  }
-  
+  } 
+  my $i = keys %{ $outbound };  
+  $logger->info("Return $i items by outbound handler."); 
+  warn Dumper $outbound if $debug;  
   return $outbound; 
 }
 
 sub get_msgs { 
   my ( $esme_id, $bandwidth ) = @_; 
   my $msgs = undef; 
-
-#  warn "esme_id: $esme_id, bandwidth: $bandwidth"; 
 
   eval { $get_mo_sth->execute( $esme_id, $bandwidth ); }; 
   if ( $@ ) {
@@ -459,7 +475,7 @@ sub convert_mo {
   $pdu->{seq} = $seq; $seq_message_id->{$seq} = $mo->{'message_id'}; $seq++; 
   $pdu->{status} = 0; 
 
-  $logger->info("Converted MO/DLR: ". Dumper $pdu); 
+#  $logger->info("Converted MO/DLR: ". Dumper $pdu) if $debug;  
 
   return SMPP::Packet::pack_pdu($pdu); 
 }
