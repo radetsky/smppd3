@@ -33,7 +33,8 @@ db-secret=pearlsms
 run
 ===
 
-```cd <where smppd3.conf located>
+```
+cd <where smppd3.conf located>
 smppd3
 ```
 or smppd3 --debug for verbose and debug mode
