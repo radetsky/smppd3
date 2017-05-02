@@ -61,6 +61,7 @@
   $logger->add_appender($appender);  
 
   my $debug  = getopt(); # Get CLI options --debug  
+  $logger->debug("Debug: $debug") if $debug; 
 
   my $conf = read_config(smppd3_config);
   $logger->debug ("Config: " . Dumper $conf) if $debug; 
@@ -98,11 +99,13 @@
 
     authentication => sub { 
       my ( $login, $password, $host, $port ) = @_;
+      $logger->debug("Authentication callback with $login, $password, $host, $port") if $debug; 
       return authentication ( $login, $password, $host, $port ); 
     },
 
     authorization => sub { 
       my ( $host, $port, $source_address ) = @_; 
+      $logger->debug("Authorization callback with $host, $port, $source_address") if $debug; 
       return authorization ($host, $port, $source_address);    # return undef if disabled to use $source with $id 
     }, 
 
@@ -112,8 +115,8 @@
     }, 
 
     outbound_q => sub { 
-      #$logger->debug("Timer") if $debug;  
-      my ($socket, $host, $port ) = @_;    
+      my ($socket, $host, $port ) = @_; 
+      $logger->debug("outbound check with $socket, $host, $port") if $debug;  
       return check_outbound ($socket, $host, $port);       
     },
 
@@ -409,6 +412,8 @@ sub check_outbound {
   my $system_id = $connections->{$connection_id}->{'authentication'}->{'system_id'};
   my $esme_id   = $connections->{$connection_id}->{'authentication'}->{'esme_id'};
   my $bandwidth = $connections->{$connection_id}->{'authentication'}->{'bandwidth'};  
+
+  #warn ("smppd3 check outbound: " . $connection_id . ":" . $esme_id . "bandwidth: " . $bandwidth ); 
 
   return get_msgs ( $esme_id, $bandwidth );
 

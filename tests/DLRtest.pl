@@ -30,9 +30,9 @@ use JSON;
 
 use NetSDS::Util::Convert;
 
-my $dsn      = 'DBI:mysql:database=smpp;host=localhost';
-my $user     = 'smpp';
-my $password = 'smpp234';
+my $dsn      = 'DBI:mysql:database=pearlsms;host=localhost';
+my $user     = 'pearlsms';
+my $password = '1234567';
 
 my $dbh = DBI->connect_cached( $dsn, $user, $password );
 unless ( defined($dbh) ) {
