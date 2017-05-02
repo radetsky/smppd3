@@ -43,7 +43,7 @@ printf("Connected to database.\n");
 
 while (1) { 
 	my $msgs = $dbh->selectall_hashref("select * from messages where msg_type='MT' order by id","id"); 
-	foreach my $dbid ( keys %{$msgs} ) { 
+	foreach my $dbid ( sort keys %{$msgs} ) { 
 		create_dlr($msgs->{$dbid});
 		delete_dbid($dbid); 
 	}
