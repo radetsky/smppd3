@@ -37,26 +37,24 @@ unless ( ( defined ($ARGV[0] ) ) or ( defined ( $ARGV[1] ) ) ) {
 }
 
 my $coding=$ARGV[0]; 
-my $text = $ARGV[1]; 
+my $text = $ARGV[1];
+my $serverName = $ARGV[2];
+my $smsCount = $ARGV[3]; 
 
-# Test No. 1: TCP Connect to localhost : 9900.
-my $cli = Net::SMPP->new_connect( 'localhost', port => 9900, smpp_version => 0x34, async => 1 );
-if ($cli) {
-	print "ok 1: connect to '127.0.0.1:9900:ver 3.4:async\n";
-} else {
-	die "fail 1: failed connect to 127.0.0.1:9900 : $!\n";
-}
+my $demo   = { host => 'pearlsms-demo.pearlpbx.com', systemid => 'rad', secret => 'KillThem' }; 
+my $pharos = { host => 'bulk.pharos.com.ua', systemid => 'pantera', secret => '38050316' }; 
+my $server = { demo => $demo, pharos => $pharos}; 
 
 my $seq = undef; 
 my $pdu = undef; 
 
-$cli = Net::SMPP->new_connect( 'localhost', port => 9900, smpp_version => 0x34, async => 1 ) or die;
-$seq = $cli->bind_transceiver( system_id => 'SMSGW', password => 'secret' ) or die;
+my $cli = Net::SMPP->new_connect( $server->{$serverName}->{host} , port => 2775, smpp_version => 0x34, async => 1 ) or die;
+$seq = $cli->bind_transceiver( system_id => $server->{$serverName}->{systemid}, password => $server->{$serverName}->{secret} ) or die;
 $pdu = $cli->read_pdu() or die;
 if ( $pdu->{status} == 0x00 ) {          ## STATUS
-	print "ok 3 : correct answer for system_id->'SMSGW',password->'secret'. \n";
+	print "ok 3 : correct answer for system_id->".$server->{$serverName}->{systemid}.",password->".$server->{$serverName}->{secret}.". \n";
 } else {
-	die "fail 3: PDU->status must have 0x00 value. \n";
+	print "fail 3: PDU->status must have 0x00 value. \n";
 }
 
 if ($coding == 2) { 
@@ -68,7 +66,7 @@ if ($coding == 0) {
 
 
 # Test No. 4: Send SM
-$seq = $cli->submit_sm( 'data_coding' => ( $coding << 2 )  , 'registered_delivery' => 1, 'source_addr' => 'smppsvrtst.pl', 'destination_addr' => '380504139380', short_message => $text ) or die;
+$seq = $cli->submit_sm( 'data_coding' => ( $coding << 2 )  , 'registered_delivery' => 1, 'source_addr' => 'TaxiPantera', 'destination_addr' => '380504139380', short_message => $text ) or die;
 $pdu = $cli->read_pdu() or die;
 if ( $pdu->{status} == 0x00 ) {          ## STATUS
 	print "ok 4: SM accepted.\n";
@@ -76,9 +74,18 @@ if ( $pdu->{status} == 0x00 ) {          ## STATUS
 	die "fail 4: single message was not acccepted. PDU->status must be 0x00. \n";
 }
 
-$pdu = $cli->read_pdu() or die; 
-warn Dumper $pdu; 
-$cli->deliver_sm_resp(message_id => $pdu->{'receipted_message_id'}, seq => $pdu->{'seq'}); 
+if ( defined ( $smsCount ) ) { 
+	for (my $i = 0; $i < $smsCount; $i++ ) { 
+		$seq = $cli->submit_sm( 'data_coding' => ( $coding << 2 )  , 'registered_delivery' => 1, 'source_addr' => 'Pharos', 'destination_addr' => '380504139380', short_message => $text ) or die;
+		$pdu = $cli->read_pdu() or die;
+	}
+}
+
+while(1) { 
+	$pdu = $cli->read_pdu() or die; 
+	warn Dumper $pdu; 
+	$cli->deliver_sm_resp(seq => $pdu->{'seq'},message_id => '' ); 
+}
 $cli->unbind();
 
 

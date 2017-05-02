@@ -31,19 +31,19 @@ use DBI;
 use NetSDS::Util::Convert;
 use NetSDS::Util::String; 
 
-# Test No. 1: TCP Connect to localhost : 9900.
-my $cli = Net::SMPP->new_connect( 'localhost', port => 9900, smpp_version => 0x34, async => 1 );
+# Test No. 1: TCP Connect to pearlsms-demo.pearlpbx.com : 2775.
+my $cli = Net::SMPP->new_connect( 'pearlsms-demo.pearlpbx.com', port => 2775, smpp_version => 0x34, async => 1 );
 if ($cli) {
-	print "ok 1: connect to '127.0.0.1:9900:ver 3.4:async\n";
+	print "ok 1: connect to '127.0.0.1:2775:ver 3.4:async\n";
 } else {
-	die "fail 1: failed connect to 127.0.0.1:9900 : $!\n";
+	die "fail 1: failed connect to 127.0.0.1:2775 : $!\n";
 }
 
 my $seq = undef; 
 my $pdu = undef; 
 
-$cli = Net::SMPP->new_connect( 'localhost', port => 9900, smpp_version => 0x34, async => 1 ) or die;
-$seq = $cli->bind_transceiver( system_id => 'SMSGW', password => 'secret' ) or die;
+$cli = Net::SMPP->new_connect( 'pearlsms-demo.pearlpbx.com', port => 2775, smpp_version => 0x34, async => 1 ) or die;
+$seq = $cli->bind_transceiver( system_id => 'rad', password => 'KillThem' ) or die;
 $pdu = $cli->read_pdu() or die;
 if ( $pdu->{status} == 0x00 ) {          ## STATUS
 	print "ok 3 : correct answer for system_id->'SMSGW',password->'secret'. \n";
@@ -53,8 +53,13 @@ if ( $pdu->{status} == 0x00 ) {          ## STATUS
 
 while (1) { 
 	$pdu = $cli->read_pdu() or die; 
-	warn $pdu->{'receipted_message_id'} . "seq: " . $pdu->{seq}; 
-	$cli->deliver_sm_resp(message_id => $pdu->{'receipted_message_id'}, seq => $pdu->{'seq'}); 
+	warn Dumper $pdu; 
+	if ( $pdu->{'cmd'} == 21 ) { 
+		print "Keep alive packet.\n"; 
+		$cli->enquire_link_resp(seq => $pdu->{'seq'});
+	} else {
+		$cli->deliver_sm_resp(message_id => $pdu->{'receipted_message_id'}, seq => $pdu->{'seq'}); 
+	}
 } 
 
 $cli->unbind();
