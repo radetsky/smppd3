@@ -33,6 +33,23 @@ db-secret=pearlsms
 run
 ===
 
+
+deps
+====
+
+```
+make
+```
+
+This command will cloning other required packages from github, but not all. Also you need to install system wide next packages: AnyEvent, Readonly, 
+
+```
+yum install perl-AnyEvent 
+yum install perl-Readonly 
+yum install perl-Log-Log4perl 
+```
+
+
 ```
 cd <where smppd3.conf located>
 smppd3

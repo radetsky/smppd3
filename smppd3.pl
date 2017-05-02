@@ -16,8 +16,8 @@
 	use strict; 
 	use warnings; 
 
-	use lib '../Pearl-SMPP-Server'; # FIXME 
-  use lib '../SMPP-Packet/lib';   # FIXME 
+  use lib './Pearl-SMPP-Server'; # FIXME 
+  use lib './SMPP-Packet/lib';   # FIXME 
 
 # Читая конфигурационный файл от smppd2 я могу сделать следующий вывод: 
 # 3. В конфиге первой части надо указать ОДИН на всех путь в БД. 
