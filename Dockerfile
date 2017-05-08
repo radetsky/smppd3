@@ -4,13 +4,7 @@ MAINTAINER Alex Radetsky <rad@pearlpbx.com>
 
 # install system-wide deps for python and node
 RUN apt-get -yqq update
-RUN apt-get -yqq install apt-utils 
-RUN apt-get -yqq install mariadb-server mariadb-client  
-RUN apt-get -yqq install make git  
-RUN apt-get -yqq install libanyevent-perl libreadonly-perl liblog-log4perl-perl libproc-daemon-perl libproc-pid-file-perl
-RUN apt-get -yqq install libconfig-general-perl libjson-perl libnetsds-perl libmath-random-mt-perl libobject-insideout-perl
-RUN apt-get -yqq install liblog-dispatch-perl
-RUN apt-get -yqq install gcc 
+RUN apt-get -yqq install apt-utils mariadb-server mariadb-client make git libanyevent-perl libreadonly-perl liblog-log4perl-perl libproc-daemon-perl libproc-pid-file-perl libconfig-general-perl libjson-perl libnetsds-perl libmath-random-mt-perl libobject-insideout-perl liblog-dispatch-perl gcc 
 RUN cpan -f Data::UUID::MT
  
 # copy our application code
@@ -32,7 +26,7 @@ RUN cd /opt/smppd3 && make
 # Setup database
 RUN chmod +x /opt/smppd3/setup_db_in_docker.sh
 RUN /opt/smppd3/setup_db_in_docker.sh 
-
+RUN apt-get -yqq clean 
 # expose port
 EXPOSE 2775
 
