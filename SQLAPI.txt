@@ -113,7 +113,7 @@ Value          | Description:
 ---------------+--------------------------------------------------------------
 MO             | Mobile originated SM 
 1              | Look for auth_table record with id=1 
-0504139380     | Received from 
+0445556677     | Received from 
 smppsvrtst.pl  | Destination of SM. May be alphanumeric. 
 5465737420     | hexadecimal string of body (See 5. Functions  ) 
 2              | Coding UCS_2BE 
